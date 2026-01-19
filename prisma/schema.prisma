@@ -1,0 +1,115 @@
+// Prisma schema for Quran Chronological Revelation Website
+// Using PostgreSQL for production
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// Surah (Chapter) - 114 total
+model Surah {
+  id                  Int      @id // 1-114
+  name                String   // Arabic name (الفاتحة)
+  nameTransliteration String   // Transliteration (Al-Fatihah)
+  nameTranslation     String   // English name (The Opening)
+  revelationType      String   // "Meccan" or "Medinan"
+  chronologicalOrder  Int      // Order of revelation (1-114)
+  versesCount         Int      // Number of verses
+  description         String?  // Brief description
+  verses              Verse[]
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([chronologicalOrder])
+  @@index([revelationType])
+}
+
+// Verse (Ayah)
+model Verse {
+  id                 String              @id @default(cuid())
+  surahId            Int
+  verseNumber        Int
+  verseKey           String              @unique // Format: "1:1", "2:255"
+  textArabic         String              // Standard Arabic
+  textUthmani        String              // Uthmani script
+  textSimple         String              // Simplified Arabic
+  juzNumber          Int                 // Juz (part) number 1-30
+  hizbNumber         Int                 // Hizb number 1-60
+  pageNumber         Int                 // Page in standard Mushaf
+  surah              Surah               @relation(fields: [surahId], references: [id])
+  translations       Translation[]
+  tafsirs            Tafsir[]
+  revelationContext  RevelationContext?
+  createdAt          DateTime            @default(now())
+
+  @@unique([surahId, verseNumber])
+  @@index([surahId])
+  @@index([verseKey])
+}
+
+// Translation - Multiple translations per verse
+model Translation {
+  id          String @id @default(cuid())
+  verseId     String
+  language    String // "en", "ur", "fr", "id", etc.
+  translator  String // "Sahih International", "Pickthall", etc.
+  text        String
+  verse       Verse  @relation(fields: [verseId], references: [id], onDelete: Cascade)
+
+  @@index([verseId])
+  @@index([language])
+}
+
+// Tafsir (Commentary/Explanation)
+model Tafsir {
+  id       String @id @default(cuid())
+  verseId  String
+  source   String // "Ibn Kathir", "Al-Jalalayn", etc.
+  language String
+  text     String
+  verse    Verse  @relation(fields: [verseId], references: [id], onDelete: Cascade)
+
+  @@index([verseId])
+  @@index([source])
+}
+
+// Asbab al-Nuzul (Reasons/Context for Revelation)
+model RevelationContext {
+  id             String  @id @default(cuid())
+  verseId        String  @unique
+  occasion       String  // What event/question triggered the revelation
+  historicalDate String? // Approximate date (e.g., "3 AH", "Before Hijra")
+  location       String? // "Mecca", "Medina", specific location
+  relatedEvents  String? // Historical context
+  sources        String  // Comma-separated hadith references
+  verse          Verse   @relation(fields: [verseId], references: [id], onDelete: Cascade)
+}
+
+// User reading progress (for future user accounts)
+model ReadingProgress {
+  id          String   @id @default(cuid())
+  sessionId   String   // Anonymous session or user ID
+  surahId     Int
+  verseNumber Int
+  scrollDepth Float    @default(0) // 0-100 percentage
+  updatedAt   DateTime @updatedAt
+
+  @@unique([sessionId, surahId])
+  @@index([sessionId])
+}
+
+// Bookmarks
+model Bookmark {
+  id        String   @id @default(cuid())
+  sessionId String
+  verseKey  String   // "1:1", "2:255"
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@index([sessionId])
+}
